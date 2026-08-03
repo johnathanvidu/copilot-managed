@@ -71,29 +71,25 @@ resource "aws_security_group" "msk" {
   })
 }
 
-resource "aws_msk_cluster" "this" {
-  cluster_name           = local.cluster_name
-  kafka_version          = var.kafka_version
-  number_of_broker_nodes = tonumber(var.number_of_broker_nodes)
+module "msk" {
+  source  = "terraform-aws-modules/msk-kafka-cluster/aws"
+  version = "~> 2.0"
 
-  broker_node_group_info {
-    instance_type   = var.broker_instance_type
-    client_subnets  = module.vpc.private_subnets
-    security_groups = [aws_security_group.msk.id]
+  name                      = local.cluster_name
+  kafka_version             = var.kafka_version
+  number_of_broker_nodes    = tonumber(var.number_of_broker_nodes)
+  broker_node_instance_type = var.broker_instance_type
 
-    storage_info {
-      ebs_storage_info {
-        volume_size = tonumber(var.broker_volume_size)
-      }
+  broker_node_client_subnets  = module.vpc.private_subnets
+  broker_node_security_groups = [aws_security_group.msk.id]
+  broker_node_storage_info = {
+    ebs_storage_info = {
+      volume_size = tonumber(var.broker_volume_size)
     }
   }
 
-  encryption_info {
-    encryption_in_transit {
-      client_broker = "TLS"
-      in_cluster    = true
-    }
-  }
+  encryption_in_transit_client_broker = "TLS"
+  encryption_in_transit_in_cluster    = true
 
   tags = merge(local.common_tags, {
     Name = local.cluster_name

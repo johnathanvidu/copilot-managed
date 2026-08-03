@@ -1,6 +1,6 @@
 output "connection_string" {
   description = "Preferred bootstrap brokers connection string for private TLS clients"
-  value       = aws_msk_cluster.this.bootstrap_brokers_tls
+  value       = module.msk.bootstrap_brokers_tls
 }
 
 output "instance_type" {
@@ -10,7 +10,7 @@ output "instance_type" {
 
 output "cluster_arn" {
   description = "MSK cluster ARN"
-  value       = aws_msk_cluster.this.arn
+  value       = module.msk.arn
 }
 
 output "transport_data" {
@@ -18,7 +18,7 @@ output "transport_data" {
   value = jsonencode({
     access_scope              = "private"
     client_broker_encryption  = "TLS"
-    bootstrap_brokers_tls     = aws_msk_cluster.this.bootstrap_brokers_tls
+    bootstrap_brokers_tls     = module.msk.bootstrap_brokers_tls
     port                      = 9094
     vpc_id                    = module.vpc.vpc_id
     private_subnet_ids        = module.vpc.private_subnets
