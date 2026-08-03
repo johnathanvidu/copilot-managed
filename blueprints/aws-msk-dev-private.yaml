@@ -1,0 +1,114 @@
+spec_version: 2
+description: "Creates a minimal-cost private Amazon MSK dev cluster in a new AWS account, including its VPC, private subnets, and broker security group."
+metadata:
+  display-name: "AWS MSK Dev Private"
+  self-service: false
+inputs:
+  agent_name:
+    type: 'string'
+    default: ''
+    description: 'Name of an agent attached to this space that can run Terraform'
+  region:
+    type: 'string'
+    default: 'us-east-1'
+    description: 'AWS region for the cluster and networking resources'
+  name_prefix:
+    type: 'string'
+    default: 'dev-msk'
+    description: 'Prefix for the generated MSK cluster name and related resources'
+  kafka_version:
+    type: 'string'
+    default: '3.6.0'
+    description: 'Amazon MSK Kafka version'
+  broker_instance_type:
+    type: 'string'
+    default: 'kafka.t3.small'
+    description: 'Smallest cost-oriented broker instance type for a dev cluster'
+  broker_nodes:
+    type: 'string'
+    default: '2'
+    description: 'Broker count. Keep 2 for the minimal private multi-AZ dev footprint.'
+  broker_volume_gib:
+    type: 'string'
+    default: '100'
+    description: 'EBS volume size in GiB per broker'
+  vpc_cidr:
+    type: 'string'
+    default: '10.20.0.0/16'
+    description: 'CIDR block for the dedicated VPC'
+  private_subnet_a_cidr:
+    type: 'string'
+    default: '10.20.1.0/24'
+    description: 'CIDR block for the first private subnet'
+  private_subnet_b_cidr:
+    type: 'string'
+    default: '10.20.2.0/24'
+    description: 'CIDR block for the second private subnet'
+  allowed_client_cidrs_csv:
+    type: 'string'
+    default: ''
+    description: 'Optional comma-separated client CIDRs allowed to reach Kafka over TLS. Leave empty to restrict access to the VPC CIDR only.'
+outputs:
+  connection_string:
+    quick: false
+    value: '{{ .grains.msk.outputs.connection_string }}'
+  broker_instance_type:
+    quick: false
+    value: '{{ .grains.msk.outputs.broker_instance_type }}'
+  cluster_arn:
+    quick: false
+    value: '{{ .grains.msk.outputs.cluster_arn }}'
+  vpc_id:
+    quick: false
+    value: '{{ .grains.msk.outputs.vpc_id }}'
+  private_subnet_ids:
+    quick: false
+    value: '{{ .grains.msk.outputs.private_subnet_ids }}'
+  private_subnet_cidrs:
+    quick: false
+    value: '{{ .grains.msk.outputs.private_subnet_cidrs }}'
+  brokers_security_group_id:
+    quick: false
+    value: '{{ .grains.msk.outputs.brokers_security_group_id }}'
+  listener_port:
+    quick: false
+    value: '{{ .grains.msk.outputs.listener_port }}'
+  allowed_client_cidrs:
+    quick: false
+    value: '{{ .grains.msk.outputs.allowed_client_cidrs }}'
+  transport_summary:
+    quick: false
+    value: '{{ .grains.msk.outputs.transport_summary }}'
+grains:
+  msk:
+    kind: terraform
+    spec:
+      source:
+        store: copilot-managed
+        path: terraform/aws-msk-dev-private
+      agent:
+        name: '{{ .inputs.agent_name }}'
+      inputs:
+        - region: '{{ .inputs.region }}'
+        - name_prefix: '{{ .inputs.name_prefix }}'
+        - kafka_version: '{{ .inputs.kafka_version }}'
+        - broker_instance_type: '{{ .inputs.broker_instance_type }}'
+        - broker_nodes: '{{ .inputs.broker_nodes }}'
+        - broker_volume_gib: '{{ .inputs.broker_volume_gib }}'
+        - vpc_cidr: '{{ .inputs.vpc_cidr }}'
+        - private_subnet_a_cidr: '{{ .inputs.private_subnet_a_cidr }}'
+        - private_subnet_b_cidr: '{{ .inputs.private_subnet_b_cidr }}'
+        - allowed_client_cidrs_csv: '{{ .inputs.allowed_client_cidrs_csv }}'
+      outputs:
+        - connection_string
+        - bootstrap_brokers_tls
+        - cluster_name
+        - cluster_arn
+        - broker_instance_type
+        - listener_port
+        - vpc_id
+        - private_subnet_ids
+        - private_subnet_cidrs
+        - brokers_security_group_id
+        - allowed_client_cidrs
+        - transport_summary
