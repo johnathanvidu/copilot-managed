@@ -1,0 +1,87 @@
+spec_version: 2
+description: "Creates a private AWS MSK dev cluster in a new AWS account using a repo-local Terraform module that wraps well-known public AWS modules."
+metadata:
+  display-name: "AWS MSK Dev Cluster"
+  self-service: false
+inputs:
+  agent:
+    type: agent
+    description: "Agent used for deployment"
+  name_prefix:
+    type: 'string'
+    default: 'msk-dev'
+    description: 'Prefix used for AWS resource names'
+  aws_region:
+    type: 'string'
+    default: 'us-east-1'
+    description: 'AWS region for the VPC and MSK cluster'
+  vpc_cidr:
+    type: 'string'
+    default: '10.20.0.0/16'
+    description: 'CIDR block for the VPC'
+  availability_zones:
+    type: 'string'
+    default: '["us-east-1a","us-east-1b"]'
+    description: 'JSON list of two availability zones for the dev cluster'
+  private_subnets:
+    type: 'string'
+    default: '["10.20.1.0/24","10.20.2.0/24"]'
+    description: 'JSON list of two private subnet CIDRs for the MSK brokers'
+  broker_instance_type:
+    type: 'string'
+    default: 'kafka.m5.large'
+    description: 'Broker instance type for the dev cluster'
+  kafka_version:
+    type: 'string'
+    default: '3.6.0'
+    description: 'Kafka version for the cluster'
+  broker_storage_info:
+    type: 'string'
+    default: '{"ebs_storage_info":{"volume_size":1000}}'
+    description: 'JSON object for broker storage configuration using a safer AWS MSK volume size'
+  allowed_client_ingress_rules:
+    type: 'string'
+    default: '{"kafka_tls_iam":{"description":"Kafka TLS IAM from approved private CIDR","cidr_ipv4":"10.20.0.0/16","from_port":9098,"to_port":9098,"ip_protocol":"tcp"}}'
+    description: 'JSON map of ingress rules that can reach the private Kafka brokers'
+  tags:
+    type: 'string'
+    default: '{"Blueprint":"aws-msk-dev-cluster","Environment":"dev"}'
+    description: 'JSON map of tags applied to created AWS resources'
+outputs:
+  connection_string:
+    quick: false
+    value: '{{ .grains.cluster.outputs.connection_string }}'
+  instance_type:
+    quick: false
+    value: '{{ .grains.cluster.outputs.instance_type }}'
+  cluster_arn:
+    quick: false
+    value: '{{ .grains.cluster.outputs.cluster_arn }}'
+  transport_data:
+    quick: false
+    value: '{{ .grains.cluster.outputs.transport_data }}'
+grains:
+  cluster:
+    kind: terraform
+    spec:
+      source:
+        store: copilot-managed
+        path: terraform/aws-msk-dev-cluster
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - name_prefix: '{{ .inputs.name_prefix }}'
+        - aws_region: '{{ .inputs.aws_region }}'
+        - vpc_cidr: '{{ .inputs.vpc_cidr }}'
+        - availability_zones: '{{ .inputs.availability_zones }}'
+        - private_subnets: '{{ .inputs.private_subnets }}'
+        - broker_instance_type: '{{ .inputs.broker_instance_type }}'
+        - kafka_version: '{{ .inputs.kafka_version }}'
+        - broker_storage_info: '{{ .inputs.broker_storage_info }}'
+        - allowed_client_ingress_rules: '{{ .inputs.allowed_client_ingress_rules }}'
+        - tags: '{{ .inputs.tags }}'
+      outputs:
+        - connection_string
+        - instance_type
+        - cluster_arn
+        - transport_data
