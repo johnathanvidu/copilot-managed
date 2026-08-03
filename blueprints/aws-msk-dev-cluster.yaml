@@ -1,5 +1,5 @@
 spec_version: 2
-description: "Creates a low-cost private AWS MSK dev cluster in a new AWS account, including its VPC, private subnets, security group, and Kafka cluster."
+description: "Creates a private AWS MSK dev cluster in a new AWS account, including its VPC, private subnets, security group, and Kafka cluster."
 metadata:
   display-name: "AWS MSK Dev Cluster"
   self-service: false
@@ -29,7 +29,7 @@ inputs:
     description: 'JSON list of private subnet CIDRs for the MSK brokers'
   broker_instance_type:
     type: 'string'
-    default: 'kafka.t3.small'
+    default: 'kafka.m5.large'
     description: 'Broker instance type for the dev cluster'
   kafka_version:
     type: 'string'
@@ -37,8 +37,8 @@ inputs:
     description: 'Kafka version for the cluster'
   broker_storage_info:
     type: 'string'
-    default: '{"ebs_storage_info":{"volume_size":1}}'
-    description: 'JSON object for broker storage configuration; keep small for dev use'
+    default: '{"ebs_storage_info":{"volume_size":100}}'
+    description: 'JSON object for broker storage configuration'
   allowed_client_ingress_rules:
     type: 'string'
     default: '{"kafka_tls_iam":{"description":"Kafka TLS IAM from approved private CIDR","cidr_ipv4":"10.20.0.0/16","from_port":9098,"to_port":9098,"ip_protocol":"tcp"}}'
