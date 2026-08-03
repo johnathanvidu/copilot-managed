@@ -37,8 +37,8 @@ inputs:
     description: 'Kafka version for the cluster'
   broker_storage_info:
     type: 'string'
-    default: '{"ebs_storage_info":{"volume_size":100}}'
-    description: 'JSON object for broker storage configuration'
+    default: '{"ebs_storage_info":{"volume_size":1000}}'
+    description: 'JSON object for broker storage configuration using a safer AWS MSK volume size'
   allowed_client_ingress_rules:
     type: 'string'
     default: '{"kafka_tls_iam":{"description":"Kafka TLS IAM from approved private CIDR","cidr_ipv4":"10.20.0.0/16","from_port":9098,"to_port":9098,"ip_protocol":"tcp"}}'
@@ -144,7 +144,6 @@ grains:
         - firehose_logs_enabled: false
         - enhanced_monitoring: 'DEFAULT'
         - enable_storage_autoscaling: false
-        - broker_node_connectivity_info: '{"public_access":{"type":"DISABLED"},"vpc_connectivity":{"client_authentication":{"sasl":{"iam":true}}},"network_type":"IPV4"}'
         - client_authentication: '{"sasl":{"iam":true}}'
         - encryption_in_transit_client_broker: 'TLS'
         - encryption_in_transit_in_cluster: true
