@@ -1,0 +1,117 @@
+spec_version: 2
+description: "Creates a private, minimal-footprint AWS MSK dev cluster in an empty AWS account using public Terraform modules directly"
+metadata:
+  display-name: "AWS Dev MSK Cluster"
+inputs:
+  agent:
+    type: agent
+    description: "Agent used for deployment"
+  name_prefix:
+    type: 'string'
+    default: 'dev-msk'
+    description: 'Prefix used to name the AWS resources'
+  aws_region:
+    type: 'string'
+    default: 'us-east-1'
+    description: 'AWS region for the VPC and MSK cluster'
+  kafka_version:
+    type: 'string'
+    default: '3.6.0'
+    description: 'Apache Kafka version for the MSK cluster'
+  broker_instance_type:
+    type: 'string'
+    default: 'kafka.t3.small'
+    description: 'Broker instance type for the dev cluster'
+  number_of_broker_nodes:
+    type: 'string'
+    default: '2'
+    description: 'Number of broker nodes to create for the dev cluster'
+  broker_volume_size:
+    type: 'string'
+    default: '10'
+    description: 'EBS volume size in GiB per broker'
+  vpc_cidr:
+    type: 'string'
+    default: '10.20.0.0/16'
+    description: 'CIDR block for the VPC'
+  private_subnet_1_cidr:
+    type: 'string'
+    default: '10.20.1.0/24'
+    description: 'CIDR for the first private subnet'
+  private_subnet_2_cidr:
+    type: 'string'
+    default: '10.20.2.0/24'
+    description: 'CIDR for the second private subnet'
+outputs:
+  connection_string:
+    quick: false
+    value: '{{ .grains.msk.outputs.bootstrap_brokers_tls }}'
+  instance_type:
+    quick: false
+    value: '{{ .inputs.broker_instance_type }}'
+  cluster_arn:
+    quick: false
+    value: '{{ .grains.msk.outputs.arn }}'
+  transport_data:
+    quick: false
+    value: 'private TLS on 9094 | vpc_id={{ .grains.vpc.outputs.vpc_id }} | private_subnet_ids={{ .grains.vpc.outputs.private_subnets }} | broker_security_group_id={{ .grains.msk_sg.outputs.security_group_id }} | bootstrap_brokers_tls={{ .grains.msk.outputs.bootstrap_brokers_tls }} | client routing requirement=run inside this VPC or through connected private networking that can reach the private subnets and broker security group on port 9094'
+grains:
+  vpc:
+    kind: terraform
+    spec:
+      version: 1.5.5
+      source:
+        path: https://github.com/terraform-aws-modules/terraform-aws-vpc
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - name: '{{ .inputs.name_prefix }}-vpc'
+        - cidr: '{{ .inputs.vpc_cidr }}'
+        - azs: 'us-east-1a,us-east-1b'
+        - private_subnets: '{{ .inputs.private_subnet_1_cidr }},{{ .inputs.private_subnet_2_cidr }}'
+        - enable_nat_gateway: 'false'
+        - enable_vpn_gateway: 'false'
+        - create_igw: 'false'
+      outputs:
+        - vpc_id
+        - private_subnets
+  msk_sg:
+    kind: terraform
+    depends-on: vpc
+    spec:
+      version: 1.5.5
+      source:
+        path: https://github.com/terraform-aws-modules/terraform-aws-security-group
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - name: '{{ .inputs.name_prefix }}-msk-sg'
+        - description: 'Security group for private MSK brokers'
+        - vpc_id: '{{ .grains.vpc.outputs.vpc_id }}'
+        - ingress_cidr_blocks: '{{ .inputs.vpc_cidr }}'
+        - ingress_rules: 'kafka-broker-tls-tcp'
+        - egress_rules: 'all-all'
+      outputs:
+        - security_group_id
+  msk:
+    kind: terraform
+    depends-on: 'vpc,msk_sg'
+    spec:
+      version: 1.5.5
+      source:
+        path: https://github.com/terraform-aws-modules/terraform-aws-msk-kafka-cluster
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - name: '{{ .inputs.name_prefix }}-cluster'
+        - kafka_version: '{{ .inputs.kafka_version }}'
+        - number_of_broker_nodes: '{{ .inputs.number_of_broker_nodes }}'
+        - broker_node_instance_type: '{{ .inputs.broker_instance_type }}'
+        - broker_node_client_subnets: '{{ .grains.vpc.outputs.private_subnets }}'
+        - broker_node_security_groups: '{{ .grains.msk_sg.outputs.security_group_id }}'
+        - broker_node_storage_info: 'ebs_storage_info={volume_size={{ .inputs.broker_volume_size }}}'
+        - encryption_in_transit_client_broker: 'TLS'
+        - encryption_in_transit_in_cluster: 'true'
+      outputs:
+        - bootstrap_brokers_tls
+        - arn
