@@ -1,0 +1,149 @@
+spec_version: 2
+description: "Creates a minimal private AWS MSK development cluster in a new VPC, including networking and security group resources required for an otherwise empty AWS account."
+metadata:
+  display-name: "AWS Dev MSK Cluster"
+  self-service: false
+inputs:
+  agent:
+    type: agent
+    description: "Agent used for deployment"
+  region:
+    type: 'string'
+    default: 'us-east-1'
+    description: 'AWS region for the cluster and network'
+  name_prefix:
+    type: 'string'
+    default: 'dev-msk'
+    description: 'Prefix used for the VPC, security group, and MSK cluster names'
+  azs_json:
+    type: 'string'
+    default: '["us-east-1a","us-east-1b"]'
+    description: 'JSON array of availability zones to use. Keep this aligned with the selected region.'
+  private_subnets_json:
+    type: 'string'
+    default: '["10.0.1.0/24","10.0.2.0/24"]'
+    description: 'JSON array of private subnet CIDRs for the MSK brokers'
+  vpc_cidr:
+    type: 'string'
+    default: '10.0.0.0/16'
+    description: 'CIDR block for the new VPC'
+  kafka_version:
+    type: 'string'
+    default: '3.6.0'
+    description: 'Kafka version for the MSK cluster'
+  broker_instance_type:
+    type: 'string'
+    default: 'kafka.t3.small'
+    description: 'Smallest cost-oriented broker instance type for a development cluster'
+  broker_volume_size:
+    type: 'string'
+    default: '64'
+    description: 'Broker EBS volume size in GiB'
+outputs:
+  connection_string:
+    quick: false
+    value: '{{ .grains.msk.outputs.bootstrap_brokers_sasl_iam }}'
+  instance_type:
+    quick: false
+    value: '{{ .inputs.broker_instance_type }}'
+  cluster_arn:
+    quick: false
+    value: '{{ .grains.msk.outputs.arn }}'
+  bootstrap_brokers_tls:
+    quick: false
+    value: '{{ .grains.msk.outputs.bootstrap_brokers_tls }}'
+  bootstrap_brokers_sasl_iam:
+    quick: false
+    value: '{{ .grains.msk.outputs.bootstrap_brokers_sasl_iam }}'
+  zookeeper_connect_string_tls:
+    quick: false
+    value: '{{ .grains.msk.outputs.zookeeper_connect_string_tls }}'
+  vpc_id:
+    quick: false
+    value: '{{ .grains.vpc.outputs.vpc_id }}'
+  private_subnet_ids:
+    quick: false
+    value: '{{ .grains.vpc.outputs.private_subnets }}'
+  private_subnet_cidrs:
+    quick: false
+    value: '{{ .grains.vpc.outputs.private_subnets_cidr_blocks }}'
+  security_group_id:
+    quick: false
+    value: '{{ .grains.security_group.outputs.id }}'
+  security_group_name:
+    quick: false
+    value: '{{ .grains.security_group.outputs.name }}'
+grains:
+  vpc:
+    kind: terraform
+    spec:
+      source:
+        path: 'https://github.com/terraform-aws-modules/terraform-aws-vpc.git//.'
+        tag: 'v6.6.1'
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - region: '{{ .inputs.region }}'
+        - name: '{{ .inputs.name_prefix }}'
+        - cidr: '{{ .inputs.vpc_cidr }}'
+        - azs: '{{ .inputs.azs_json }}'
+        - private_subnets: '{{ .inputs.private_subnets_json }}'
+        - enable_nat_gateway: false
+        - create_private_nat_gateway_route: false
+        - create_igw: false
+      outputs:
+        - vpc_id
+        - vpc_cidr_block
+        - private_subnets
+        - private_subnets_cidr_blocks
+  security_group:
+    kind: terraform
+    depends-on: vpc
+    spec:
+      source:
+        path: 'https://github.com/terraform-aws-modules/terraform-aws-security-group.git//.'
+        tag: 'v6.0.0'
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - region: '{{ .inputs.region }}'
+        - name: '{{ .inputs.name_prefix }}-msk'
+        - description: 'Private ingress for the development MSK cluster'
+        - vpc_id: '{{ .grains.vpc.outputs.vpc_id }}'
+        - ingress_rules: '{"tls":{"description":"TLS from inside the VPC","ip_protocol":"tcp","from_port":9094,"to_port":9094,"cidr_ipv4":"{{ .grains.vpc.outputs.vpc_cidr_block }}"},"sasl_iam":{"description":"SASL IAM from inside the VPC","ip_protocol":"tcp","from_port":9098,"to_port":9098,"cidr_ipv4":"{{ .grains.vpc.outputs.vpc_cidr_block }}"}}'
+        - egress_rules: '{"all":{"description":"All outbound traffic","ip_protocol":"-1","cidr_ipv4":"0.0.0.0/0"}}'
+      outputs:
+        - id
+        - name
+  msk:
+    kind: terraform
+    depends-on: 'vpc,security_group'
+    spec:
+      source:
+        path: 'https://github.com/terraform-aws-modules/terraform-aws-msk-kafka-cluster.git//.'
+        tag: 'v3.3.0'
+      agent:
+        name: '{{ .inputs.agent }}'
+      inputs:
+        - region: '{{ .inputs.region }}'
+        - name: '{{ .inputs.name_prefix }}'
+        - kafka_version: '{{ .inputs.kafka_version }}'
+        - broker_node_instance_type: '{{ .inputs.broker_instance_type }}'
+        - number_of_broker_nodes: 2
+        - broker_node_az_distribution: 'DEFAULT'
+        - broker_node_client_subnets: '{{ .grains.vpc.outputs.private_subnets }}'
+        - broker_node_security_groups: '["{{ .grains.security_group.outputs.id }}"]'
+        - broker_node_connectivity_info: '{"public_access":{"type":"DISABLED"}}'
+        - encryption_in_transit_client_broker: 'TLS'
+        - client_authentication: '{"sasl":{"iam":true}}'
+        - create_configuration: false
+        - create_schema_registry: false
+        - create_cloudwatch_log_group: false
+        - enable_storage_autoscaling: false
+        - broker_node_storage_info: '{"ebs_storage_info":{"volume_size":{{ .inputs.broker_volume_size }}}}'
+      outputs:
+        - arn
+        - bootstrap_brokers_tls
+        - bootstrap_brokers_sasl_iam
+        - zookeeper_connect_string_tls
+        - bootstrap_brokers
